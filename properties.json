@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "ciudad": "Madrid",
+    "tipo": "piso",
+    "habitaciones": 2,
+    "precio": 210000,
+    "descripcion": "Piso reformado de 2 habitaciones cerca del metro Sol."
+  },
+  {
+    "id": 2,
+    "ciudad": "Madrid",
+    "tipo": "ático",
+    "habitaciones": 3,
+    "precio": 450000,
+    "descripcion": "Ático con terraza en el barrio de Salamanca."
+  },
+  {
+    "id": 3,
+    "ciudad": "Toledo",
+    "tipo": "casa",
+    "habitaciones": 4,
+    "precio": 180000,
+    "descripcion": "Casa unifamiliar con jardín a las afueras de Toledo."
+  },
+  {
+    "id": 4,
+    "ciudad": "Valencia",
+    "tipo": "piso",
+    "habitaciones": 1,
+    "precio": 120000,
+    "descripcion": "Piso pequeño ideal para inversión, cerca de la playa."
+  },
+  {
+    "id": 5,
+    "ciudad": "Ocaña",
+    "tipo": "chalet",
+    "habitaciones": 3,
+    "precio": 195000,
+    "descripcion": "Chalet adosado con garaje, zona tranquila."
+  }
+]
