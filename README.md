@@ -1,111 +1,169 @@
-# Voice Agent — Agencia Inmobiliaria
+# Voice Agent — Real Estate Agency
 
-Agente de voz construido con [LiveKit Agents](https://docs.livekit.io/agents/) que atiende llamadas telefónicas/web de una agencia inmobiliaria y responde preguntas sobre un catálogo de propiedades.
+A voice agent built with [LiveKit Agents](https://docs.livekit.io/agents/) that handles phone/web calls for a real estate agency and answers questions about a property catalog.
 
-## Índice
+## Table of contents
 
-- [Voice Agent — Agencia Inmobiliaria](#voice-agent--agencia-inmobiliaria)
-  - [Índice](#índice)
-  - [Arquitectura](#arquitectura)
-  - [Requisitos previos](#requisitos-previos)
-  - [Configuración local](#configuración-local)
-  - [Ejecutar en desarrollo](#ejecutar-en-desarrollo)
-  - [Probar el agente](#probar-el-agente)
-  - [Estructura del proyecto](#estructura-del-proyecto)
-  - [La knowledge base (propiedades)](#la-knowledge-base-propiedades)
-  - [Despliegue en Azure](#despliegue-en-azure)
-  - [Costos esperados](#costos-esperados)
+- [Voice Agent — Real Estate Agency](#voice-agent--real-estate-agency)
+  - [Table of contents](#table-of-contents)
+  - [Architecture](#architecture)
+  - [Prerequisites](#prerequisites)
+  - [Quickstart (for anyone cloning this repo for the first time)](#quickstart-for-anyone-cloning-this-repo-for-the-first-time)
+    - [1. Clone the repository](#1-clone-the-repository)
+    - [2. Install dependencies](#2-install-dependencies)
+    - [3. Create your LiveKit Cloud account (free)](#3-create-your-livekit-cloud-account-free)
+    - [4. Set up your environment variables](#4-set-up-your-environment-variables)
+    - [5. Download local models (first time only)](#5-download-local-models-first-time-only)
+    - [6. Run the agent](#6-run-the-agent)
+    - [7. Test the agent live](#7-test-the-agent-live)
+  - [Project structure](#project-structure)
+  - [The knowledge base (properties)](#the-knowledge-base-properties)
+  - [Deploying to Azure](#deploying-to-azure)
+  - [Expected costs](#expected-costs)
   - [Troubleshooting](#troubleshooting)
 
-## Arquitectura
+## Architecture
 
 ```
-Llamada / navegador
+Phone call / browser
         │
         ▼
    LiveKit Cloud (SFU + dispatch)
         │
         ▼
-  agent.py (worker Python, siempre corriendo)
+  agent.py (Python worker, always running)
         │
         ├── STT   → LiveKit Inference (Deepgram nova-3)
         ├── LLM   → LiveKit Inference (OpenAI gpt-4.1-mini) + function_tool
         ├── TTS   → LiveKit Inference (Cartesia sonic-3)
-        └── Turn detection → LiveKit Inference (modelo cloud, fallback local)
+        └── Turn detection → LiveKit Inference (cloud model, local fallback)
         │
         ▼
-  properties.json (local) o Azure Blob Storage (producción)
+  properties.json (local) or Azure Blob Storage (production)
 ```
 
-Todo el pipeline de voz (STT/LLM/TTS/turn detection) corre a través de **LiveKit Inference**, sin credenciales de terceros (Google, OpenAI, etc.) — se factura contra el proyecto de LiveKit Cloud.
+The entire voice pipeline (STT/LLM/TTS/turn detection) runs through **LiveKit Inference**, with no third-party credentials (Google, OpenAI, etc.) required — it's billed against your LiveKit Cloud project.
 
-## Requisitos previos
+## Prerequisites
 
 - Python 3.13+
-- [uv](https://docs.astral.sh/uv/) como gestor de paquetes
-- Una cuenta de [LiveKit Cloud](https://cloud.livekit.io) (free tier)
-- (Opcional, solo para producción) Cuenta de Azure
+- [uv](https://docs.astral.sh/uv/) as the package manager
+- A [LiveKit Cloud](https://cloud.livekit.io) account (free tier)
+- (Optional, production only) An Azure account
 
-## Configuración local
+## Quickstart (for anyone cloning this repo for the first time)
 
-1. Clona el repo e instala dependencias:
-   ```bash
-   uv sync
-   ```
+Follow these steps in order. You don't need any prior LiveKit knowledge.
 
-2. Copia el archivo de variables de entorno y complétalo:
-   ```bash
-   cp .env.example .env
-   ```
-   ```
-   LIVEKIT_URL=wss://tu-proyecto.livekit.cloud
-   LIVEKIT_API_KEY=...
-   LIVEKIT_API_SECRET=...
-   ```
-   Estas tres las obtienes en [cloud.livekit.io](https://cloud.livekit.io) → tu proyecto → Settings → Keys.
+### 1. Clone the repository
 
-   Deja `AZURE_STORAGE_CONNECTION_STRING` vacío para desarrollo local — el agente usará automáticamente el `properties.json` del repo.
+```bash
+git clone <this-repo-url>
+cd <repo-folder>
+```
 
-3. Descarga los modelos locales (VAD / turn detector de respaldo):
-   ```bash
-   uv run -m livekit.agents download-files
-   ```
+### 2. Install dependencies
 
-## Ejecutar en desarrollo
+This project uses [uv](https://docs.astral.sh/uv/) as its package manager. If you don't have it yet:
+
+```bash
+# Windows (PowerShell)
+irm https://astral.sh/uv/install.ps1 | iex
+
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then, inside the repo folder:
+
+```bash
+uv sync
+```
+
+### 3. Create your LiveKit Cloud account (free)
+
+1. Go to **[cloud.livekit.io](https://cloud.livekit.io)** and sign up (you can use your GitHub or Google account).
+2. Once in, create a **new project** (it will prompt you automatically the first time).
+3. Inside your project, go to **Settings → Keys**.
+4. Copy these three values — you'll need them in the next step:
+   - `LIVEKIT_URL` (something like `wss://your-project.livekit.cloud`)
+   - `LIVEKIT_API_KEY`
+   - `LIVEKIT_API_SECRET`
+
+### 4. Set up your environment variables
+
+Copy the template:
+
+```bash
+cp .env.example .env
+```
+
+Open the `.env` file that was just created and paste in the 3 values you copied from LiveKit in the previous step:
+
+```dotenv
+LIVEKIT_URL=wss://your-project.livekit.cloud
+LIVEKIT_API_KEY=your_api_key_here
+LIVEKIT_API_SECRET=your_api_secret_here
+```
+
+⚠️ **The `.env` file is yours only — never commit it or share it.** It's already listed in `.gitignore`. `.env.example` is the only template that goes into the repository, with no real values.
+
+You don't need any other external API key (OpenAI, Google, etc.) — all STT/LLM/TTS runs through LiveKit Inference using those same credentials.
+
+> **Optional:** if you switch the LLM in `agent.py` to a Google model instead of the default `openai/gpt-4.1-mini`, you'll additionally need a `GOOGLE_API_KEY` (see the commented-out line in `.env.example`). Not required for the default setup.
+
+### 5. Download local models (first time only)
+
+```bash
+uv run -m livekit.agents download-files
+```
+
+This downloads the fallback models (VAD, turn detector) so the agent starts up fast and keeps working even if there's a hiccup connecting to the cloud.
+
+### 6. Run the agent
 
 ```bash
 uv run agent.py dev
 ```
 
-Espera a ver `registered worker` en los logs — eso confirma que el worker está listo y escuchando.
+Wait until you see a line like this in the terminal:
+```
+registered worker {"id": "AW_...", "url": "wss://your-project.livekit.cloud", ...}
+```
+That confirms the agent is running and ready to take test calls. **Keep this terminal open** — if you close it, the agent stops being available.
 
-## Probar el agente
+### 7. Test the agent live
 
-1. Ve al [Console de LiveKit Cloud](https://cloud.livekit.io) → Agents → tu agente.
-2. Click en **Start session**.
-3. Habla con el agente. Preguntas de prueba sugeridas:
-   - "¿Qué propiedades tienes en Madrid?"
-   - "Busco un piso, no me importa la ciudad"
-   - "¿Tienes chalets en Ocaña?"
-   - "¿Qué tienes en Barcelona?" (debe decir que no hay resultados, no inventar)
-4. Revisa la pestaña **Events** del Console para ver en tiempo real las llamadas a la tool `buscar_propiedades` y sus resultados.
+1. Go back to **[cloud.livekit.io](https://cloud.livekit.io)** and open your project.
+2. In the sidebar, click **Agents**.
+3. Your agent should show up (auto-detected because the worker from step 6 is running). Click it to open the **Console**.
+4. Click the blue **Start session** button (top right).
+5. Allow the browser to use your microphone if prompted.
+6. **Wait about 5 seconds** — the agent takes a moment to connect and greet you. It's not failing, it's just initializing the voice session.
+7. Once it greets you, try questions like:
+   - "What properties do you have in Madrid?"
+   - "I'm looking for an apartment, any city is fine"
+   - "Do you have chalets in Ocaña?"
+8. You can watch what the agent is doing in real time (transcripts, tool calls, errors) in the **Events** tab of the same Console.
 
-## Estructura del proyecto
+With this, you now have the agent running locally and tested live, no deployment needed yet.
+
+## Project structure
 
 ```
 .
-├── agent.py                     # Lógica del agente + tool de búsqueda
-├── properties.json              # Knowledge base de propiedades (dev/fallback)
-├── pyproject.toml / uv.lock     # Dependencias
-├── Dockerfile                   # Imagen del worker para producción
-├── .env.example                 # Plantilla de variables de entorno
-├── .github/workflows/deploy.yml # CI/CD: build + deploy a Azure en cada push a main
-└── README_DEPLOY.md             # Comandos detallados de Azure CLI
+├── agent.py                     # Agent logic + search tool
+├── properties.json              # Property knowledge base (dev/fallback)
+├── pyproject.toml / uv.lock     # Dependencies
+├── Dockerfile                   # Worker image for production
+├── .env.example                 # Environment variable template
+├── .github/workflows/deploy.yml # CI/CD: build + deploy to Azure on every push to main
+└── README_DEPLOY.md             # Detailed Azure CLI commands
 ```
 
-## La knowledge base (propiedades)
+## The knowledge base (properties)
 
-`properties.json` contiene un array de objetos con esta forma:
+`properties.json` contains an array of objects shaped like this:
 
 ```json
 {
@@ -118,14 +176,14 @@ Espera a ver `registered worker` en los logs — eso confirma que el worker est�
 }
 ```
 
-- **En local**: edita el archivo directamente.
-- **En producción**: se sube a Azure Blob Storage y el agente lo relee automáticamente (caché de 60s) sin necesidad de redeploy — ver `README_DEPLOY.md`, sección 3.
+- **Locally**: edit the file directly.
+- **In production**: it's uploaded to Azure Blob Storage and the agent automatically re-reads it (60s cache) with no redeploy needed — see `README_DEPLOY.md`, section 3.
 
-## Despliegue en Azure
+## Deploying to Azure
 
-Ver [`README_DEPLOY.md`](./README_DEPLOY.md) para los comandos completos de `az cli` (creación de resource group, Container Registry, Storage Account, y Container App) y la configuración de secrets en GitHub para el pipeline de CI/CD.
+See [`README_DEPLOY.md`](./README_DEPLOY.md) for the full `az cli` commands (creating the resource group, Container Registry, Storage Account, and Container App) and the GitHub secrets setup for the CI/CD pipeline.
 
-Resumen del flujo automatizado:
+Automated flow summary:
 ```
 git push origin main
         │
@@ -133,26 +191,26 @@ git push origin main
 GitHub Actions (.github/workflows/deploy.yml)
         │
         ├── docker build
-        ├── push a Azure Container Registry
-        └── deploy a Azure Container Apps
+        ├── push to Azure Container Registry
+        └── deploy to Azure Container Apps
 ```
 
-## Costos esperados
+## Expected costs
 
-| Escenario | Costo |
+| Scenario | Cost |
 |---|---|
-| Desarrollo local (`uv run agent.py dev`) | $0 |
-| Primeros 30 días en Azure (crédito de bienvenida) | $0 |
-| Producción en Azure Container Apps (worker 24/7, tras el mes de crédito) | ~$10-13 USD/mes |
+| Local development (`uv run agent.py dev`) | $0 |
+| First 30 days on Azure (welcome credit) | $0 |
+| Production on Azure Container Apps (24/7 worker, after the credit month) | ~$10-13 USD/month |
 
-El worker necesita `minReplicas ≥ 1` (no puede escalar a cero) porque debe mantenerse siempre registrado con LiveKit Cloud para recibir llamadas — por eso no cabe completo en la cuota "always free" de Azure.
+The worker needs `minReplicas ≥ 1` (it can't scale to zero) because it has to stay registered with LiveKit Cloud at all times to receive calls — that's why it doesn't fully fit within Azure's "always free" quota.
 
 ## Troubleshooting
 
-| Síntoma | Causa probable | Solución |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| `ModuleNotFoundError: livekit.plugins.turn_detector` | Plugin deprecado | Usar `from livekit.agents.inference import TurnDetector` |
-| `429 RESOURCE_EXHAUSTED` en LLM | Cuota de proveedor externo agotada | Usamos LiveKit Inference, no aplica ya |
-| `LiveKit Inference STT connection timed out` | Cold start / modelos locales no descargados | Correr `uv run -m livekit.agents download-files` antes del primer arranque |
-| Console no detecta ningún agente | El worker local no está corriendo | Verificar que `uv run agent.py dev` esté activo en una terminal |
-| `az login` → "no estás suscrito" | Falta activar la suscripción free de Azure | Completar el registro en [azure.microsoft.com/free](https://azure.microsoft.com/free) |
+| `ModuleNotFoundError: livekit.plugins.turn_detector` | Deprecated plugin | Use `from livekit.agents.inference import TurnDetector` |
+| `429 RESOURCE_EXHAUSTED` on the LLM | External provider quota exhausted | We use LiveKit Inference, so this no longer applies |
+| `LiveKit Inference STT connection timed out` | Cold start / local models not downloaded | Run `uv run -m livekit.agents download-files` before the first launch |
+| Console doesn't detect any agent | The local worker isn't running | Verify `uv run agent.py dev` is active in a terminal |
+| `az login` → "not subscribed" | Azure free subscription not activated yet | Complete signup at [azure.microsoft.com/free](https://azure.microsoft.com/free) |
