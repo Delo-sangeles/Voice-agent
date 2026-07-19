@@ -1,0 +1,13 @@
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+models = client.models.list()
+
+for model in models.data:
+    if "realtime" in model.id or "gpt-4o" in model.id:
+        print(model.id)
